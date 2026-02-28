@@ -238,9 +238,18 @@ class ConversationOut(BaseModel):
     started_at: datetime
     last_message_at: datetime
     message_count: int
+    result: str | None = None
     resolved_at: datetime | None
+    tags: list[str] = []
 
     model_config = {"from_attributes": True}
+
+    @classmethod
+    def from_conversation(cls, conv: Any) -> "ConversationOut":
+        data = cls.model_validate(conv)
+        meta = conv.metadata_ if hasattr(conv, "metadata_") and conv.metadata_ else {}
+        data.tags = meta.get("tags", [])
+        return data
 
 
 class MessageOut(BaseModel):

@@ -25,6 +25,8 @@ export function AgentsPage() {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
     const [unlinkTarget, setUnlinkTarget] = useState<InstagramAccount | null>(null);
+    const [deleteTarget, setDeleteTarget] = useState<Agent | null>(null);
+    const [deleting, setDeleting] = useState(false);
 
     useEffect(() => {
         loadData();
@@ -97,6 +99,26 @@ export function AgentsPage() {
         setUnlinkTarget(null);
     };
 
+    const handleDeleteAgent = async () => {
+        if (!deleteTarget) return;
+        setDeleting(true);
+        try {
+            await agents.delete(deleteTarget.id);
+            setAgentList(prev => prev.filter(a => a.id !== deleteTarget.id));
+            if (selectedAgent?.id === deleteTarget.id) {
+                setSelectedAgent(null);
+                setDocs([]);
+            }
+            setToast(`"${deleteTarget.name}" deleted successfully`);
+            setTimeout(() => setToast(null), 4000);
+        } catch (err: any) {
+            setToast(err.message || 'Failed to delete agent');
+            setTimeout(() => setToast(null), 4000);
+        }
+        setDeleting(false);
+        setDeleteTarget(null);
+    };
+
     if (loading) return <div className="max-w-[1400px] mx-auto p-xl w-full"><p className="text-text-secondary">Loading agents...</p></div>;
 
     const hasIgAccount = igAccounts.length > 0;
@@ -127,6 +149,29 @@ export function AgentsPage() {
                             <button className={btnSecondary} onClick={() => setUnlinkTarget(null)}>Cancel</button>
                             <button className={btnDanger} onClick={handleUnlink}>
                                 <Unlink size={14} /> Disconnect
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Agent Confirmation Modal */}
+            {deleteTarget && (
+                <div className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-[8px] flex items-center justify-center p-xl animate-fade-in" onClick={() => !deleting && setDeleteTarget(null)}>
+                    <div className="bg-bg-elevated border border-border-default rounded-xl p-xl w-full max-w-[440px] animate-slide-up" onClick={e => e.stopPropagation()}>
+                        <div className="flex flex-col items-center text-center py-lg">
+                            <div className="w-14 h-14 rounded-full bg-error/10 flex items-center justify-center mb-md">
+                                <AlertTriangle size={28} className="text-error" />
+                            </div>
+                            <h3 className="text-lg font-semibold mb-sm">Delete "{deleteTarget.name}"?</h3>
+                            <p className="text-text-secondary text-sm leading-relaxed max-w-[320px]">
+                                This will permanently delete this agent, its <strong className="text-error">knowledge base</strong>, and all uploaded documents. Conversations and appointments will be kept but unlinked.
+                            </p>
+                        </div>
+                        <div className="flex justify-center gap-md mt-lg pt-md border-t border-border-subtle">
+                            <button className={btnSecondary} onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancel</button>
+                            <button className={btnDanger} onClick={handleDeleteAgent} disabled={deleting}>
+                                <Trash2 size={14} /> {deleting ? 'Deleting...' : 'Delete Agent'}
                             </button>
                         </div>
                     </div>
@@ -207,6 +252,7 @@ export function AgentsPage() {
                             llmProviders={llmProviders}
                             onUpdate={(a) => { setSelectedAgent(a); setAgentList(prev => prev.map(x => x.id === a.id ? a : x)); }}
                             onDocsChange={setDocs}
+                            onDelete={(a) => setDeleteTarget(a)}
                         />
                     ) : (
                         <div className={cardClass}>
@@ -235,12 +281,13 @@ export function AgentsPage() {
 
 /* ── Agent Detail Panel ─────────────────────────────────────────── */
 
-function AgentDetail({ agent, docs, llmProviders, onUpdate, onDocsChange }: {
+function AgentDetail({ agent, docs, llmProviders, onUpdate, onDocsChange, onDelete }: {
     agent: Agent;
     docs: KnowledgeDocument[];
     llmProviders: LlmProvider[];
     onUpdate: (a: Agent) => void;
     onDocsChange: (d: KnowledgeDocument[]) => void;
+    onDelete: (a: Agent) => void;
 }) {
     const [tab, setTab] = useState<'context' | 'permissions' | 'knowledge' | 'model'>('context');
     const [context, setContext] = useState(agent.system_context || '');
@@ -352,9 +399,14 @@ function AgentDetail({ agent, docs, llmProviders, onUpdate, onDocsChange }: {
                         </div>
                     </div>
                 </div>
-                <button className={`${agent.is_active ? btnDanger : btnPrimary} ${btnSm}`} onClick={toggleActive}>
-                    <Power size={14} /> {agent.is_active ? 'Deactivate' : 'Activate'}
-                </button>
+                <div className="flex items-center gap-sm">
+                    <button className={`${agent.is_active ? btnDanger : btnPrimary} ${btnSm}`} onClick={toggleActive}>
+                        <Power size={14} /> {agent.is_active ? 'Deactivate' : 'Activate'}
+                    </button>
+                    <button className={`${btnGhost} ${btnSm} text-error hover:bg-error/10`} onClick={() => onDelete(agent)} title="Delete agent">
+                        <Trash2 size={14} />
+                    </button>
+                </div>
             </div>
 
             {/* Tabs */}
@@ -401,8 +453,8 @@ function AgentDetail({ agent, docs, llmProviders, onUpdate, onDocsChange }: {
                                         type="button"
                                         onClick={() => handleProviderChange(p.id)}
                                         className={`flex flex-col items-start gap-xs p-md rounded-lg border text-left transition-all duration-150 ${llmProvider === p.id
-                                                ? 'border-accent-purple bg-accent-purple/5 shadow-[0_0_0_3px_rgba(139,92,246,0.1)]'
-                                                : 'border-border-default bg-bg-tertiary hover:border-border-strong hover:bg-bg-card-hover'
+                                            ? 'border-accent-purple bg-accent-purple/5 shadow-[0_0_0_3px_rgba(139,92,246,0.1)]'
+                                            : 'border-border-default bg-bg-tertiary hover:border-border-strong hover:bg-bg-card-hover'
                                             }`}
                                     >
                                         <div className="flex items-center gap-sm w-full">
@@ -657,7 +709,7 @@ function CreateAgentModal({ igAccounts, existingAgents, llmProviders, onClose, o
 
     const [name, setName] = useState('');
     const [selectedAccountId, setSelectedAccountId] = useState(availableAccounts[0]?.id || '');
-    const [llmProvider, setLlmProvider] = useState('');
+    const [llmProvider, setLlmProvider] = useState(llmProviders[0]?.id || '');
     const [providerConfig, setProviderConfig] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -753,29 +805,14 @@ function CreateAgentModal({ igAccounts, existingAgents, llmProviders, onClose, o
                     <div className="mb-md">
                         <label className={labelClass}>LLM Provider</label>
                         <div className="grid grid-cols-2 gap-sm mt-xs">
-                            <button
-                                type="button"
-                                onClick={() => handleProviderChange('')}
-                                className={`flex flex-col items-start gap-xs p-md rounded-lg border text-left transition-all duration-150 ${llmProvider === ''
-                                        ? 'border-accent-purple bg-accent-purple/5 shadow-[0_0_0_3px_rgba(139,92,246,0.1)]'
-                                        : 'border-border-default bg-bg-tertiary hover:border-border-strong'
-                                    }`}
-                            >
-                                <div className="flex items-center gap-sm">
-                                    <Settings size={14} className={llmProvider === '' ? 'text-accent-purple' : 'text-text-tertiary'} />
-                                    <span className="text-sm font-semibold">Default</span>
-                                    {llmProvider === '' && <span className="ml-auto w-2 h-2 rounded-full bg-accent-purple" />}
-                                </div>
-                                <span className="text-[0.75rem] text-text-tertiary">Use global settings from .env</span>
-                            </button>
                             {llmProviders.map(p => (
                                 <button
                                     key={p.id}
                                     type="button"
                                     onClick={() => handleProviderChange(p.id)}
                                     className={`flex flex-col items-start gap-xs p-md rounded-lg border text-left transition-all duration-150 ${llmProvider === p.id
-                                            ? 'border-accent-purple bg-accent-purple/5 shadow-[0_0_0_3px_rgba(139,92,246,0.1)]'
-                                            : 'border-border-default bg-bg-tertiary hover:border-border-strong'
+                                        ? 'border-accent-purple bg-accent-purple/5 shadow-[0_0_0_3px_rgba(139,92,246,0.1)]'
+                                        : 'border-border-default bg-bg-tertiary hover:border-border-strong'
                                         }`}
                                 >
                                     <div className="flex items-center gap-sm">

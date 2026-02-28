@@ -22,6 +22,10 @@ class Appointment(Base):
         UUID(as_uuid=True),
         ForeignKey("agents.id", ondelete="SET NULL"),
     )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+    )
     customer_ig_id: Mapped[str] = mapped_column(String(100), nullable=False)
     customer_name: Mapped[str | None] = mapped_column(String(255))
     customer_surname: Mapped[str | None] = mapped_column(String(255))
@@ -48,6 +52,7 @@ class Appointment(Base):
 
     # Relationships
     agent: Mapped["Agent | None"] = relationship(back_populates="appointments")
+    user: Mapped["User | None"] = relationship()
 
     def __repr__(self) -> str:
         return f"<Appointment {self.appointment_date} {self.appointment_time} [{self.status}]>"

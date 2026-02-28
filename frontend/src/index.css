@@ -6,7 +6,7 @@
 
 @import "tailwindcss";
 
-/* ── Theme ─────────────────────────────────────────────────────────── */
+/* ── Theme (Dark — default) ────────────────────────────────────────── */
 
 @theme {
   /* Font */
@@ -21,15 +21,15 @@
   --color-bg-card-hover: #1c1c2a;
   --color-bg-elevated: #1e1e2e;
 
-  /* Borders */
-  --color-border-subtle: rgba(255, 255, 255, 0.06);
-  --color-border-default: rgba(255, 255, 255, 0.1);
+  /* Borders — improved visibility */
+  --color-border-subtle: rgba(255, 255, 255, 0.08);
+  --color-border-default: rgba(255, 255, 255, 0.12);
   --color-border-strong: rgba(255, 255, 255, 0.16);
 
-  /* Text */
+  /* Text — improved contrast */
   --color-text-primary: #f0f0f5;
-  --color-text-secondary: #8b8ba0;
-  --color-text-tertiary: #5a5a72;
+  --color-text-secondary: #a0a0b8;
+  --color-text-tertiary: #71718a;
   --color-text-inverse: #0a0a0f;
 
   /* Accent */
@@ -77,6 +77,33 @@
   --animate-ig-pulse: igPulse 2s ease-in-out infinite;
 }
 
+/* ── Light Theme Overrides ─────────────────────────────────────────── */
+
+html.light {
+  color-scheme: light;
+
+  --color-bg-primary: #f5f5fa;
+  --color-bg-secondary: #ededf4;
+  --color-bg-tertiary: #e4e4ee;
+  --color-bg-card: #ffffff;
+  --color-bg-card-hover: #f5f5fa;
+  --color-bg-elevated: #ffffff;
+
+  --color-border-subtle: rgba(0, 0, 0, 0.06);
+  --color-border-default: rgba(0, 0, 0, 0.12);
+  --color-border-strong: rgba(0, 0, 0, 0.2);
+
+  --color-text-primary: #111118;
+  --color-text-secondary: #555566;
+  --color-text-tertiary: #888899;
+  --color-text-inverse: #f0f0f5;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.1);
+  --shadow-glow: 0 0 24px rgba(139, 92, 246, 0.12);
+}
+
 /* ── Base / Reset ──────────────────────────────────────────────────── */
 
 @layer base {
@@ -91,6 +118,7 @@
 
   html {
     font-size: 16px;
+    color-scheme: dark;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -101,6 +129,7 @@
     color: var(--color-text-primary);
     line-height: 1.6;
     min-height: 100vh;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   a {

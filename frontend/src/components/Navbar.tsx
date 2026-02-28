@@ -1,9 +1,11 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Bot, Calendar, MessageSquare, LogOut } from 'lucide-react';
+import { Bot, Calendar, MessageSquare, LogOut, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 export function Navbar() {
     const { user, logout } = useAuth();
+    const { theme, toggle } = useTheme();
     const navigate = useNavigate();
 
     const handleLogout = () => {
@@ -44,6 +46,13 @@ export function Navbar() {
             </div>
 
             <div className="flex items-center gap-md">
+                <button
+                    className="text-text-secondary hover:bg-bg-tertiary hover:text-text-primary p-1.5 rounded-md transition-all duration-150"
+                    onClick={toggle}
+                    title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                >
+                    {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+                </button>
                 <div className="w-[34px] h-[34px] rounded-full bg-gradient-to-br from-accent-purple via-accent-pink to-accent-orange flex items-center justify-center text-[0.8rem] font-semibold text-white">{initials}</div>
                 <button className="text-text-secondary hover:bg-bg-tertiary hover:text-text-primary p-1.5 rounded-md transition-all duration-150" onClick={handleLogout} title="Logout">
                     <LogOut size={16} />

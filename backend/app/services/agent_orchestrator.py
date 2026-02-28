@@ -56,7 +56,7 @@ BEHAVIOR:
 - If you genuinely don't know something, say so and suggest the customer contact the business directly.
 """
 
-MAX_CONVERSATION_CONTEXT = 3  # Last N messages to include in LLM context
+MAX_CONVERSATION_CONTEXT = 10  # Last N messages to include in LLM context
 MAX_TOOL_ROUNDS = 5  # Prevent infinite tool-calling loops
 
 
@@ -253,6 +253,18 @@ async def handle_incoming_message(
     if not final_text:
         final_text = "I'm sorry, I couldn't process your request. Please try again."
 
+    # ── Step 5b: Derive tags from tool calls ──
+    if all_tool_calls_log:
+        new_tags = _derive_tags(all_tool_calls_log)
+        if new_tags:
+            meta = dict(conversation.metadata_) if conversation.metadata_ else {}
+            existing_tags = list(meta.get("tags", []))
+            for t in new_tags:
+                if t not in existing_tags:
+                    existing_tags.append(t)
+            meta["tags"] = existing_tags
+            conversation.metadata_ = meta
+
     # ── Step 6: Save agent response ──
     agent_message = Message(
         conversation_id=conversation.id,
@@ -278,6 +290,46 @@ async def handle_incoming_message(
         "Orchestration complete: %d tool calls, %d chars response",
         len(all_tool_calls_log), len(final_text),
     )
+
+
+# ── Tag derivation ──────────────────────────────────────────────────
+
+
+def _derive_tags(tool_calls_log: list[dict]) -> set[str]:
+    """Inspect executed tool calls and return semantic tags for the conversation."""
+    tags: set[str] = set()
+
+    for entry in tool_calls_log:
+        tool = entry.get("tool", "")
+        result_str = entry.get("result", "")
+
+        try:
+            result = json.loads(result_str) if isinstance(result_str, str) else result_str
+        except (json.JSONDecodeError, TypeError):
+            result = {}
+
+        if tool == "manage_appointment":
+            status = result.get("status", "")
+            if status == "confirmed":
+                tags.add("appointment_created")
+            elif status == "cancelled":
+                tags.add("appointment_cancelled")
+            if "available_slots" in result:
+                tags.add("availability_checked")
+
+        elif tool == "collect_compliment":
+            if result.get("status") == "recorded":
+                tags.add("compliment")
+
+        elif tool == "send_email":
+            if result.get("status") == "sent":
+                tags.add("email_sent")
+
+        elif tool == "search_knowledge":
+            if result.get("result_count", 0) > 0:
+                tags.add("knowledge_used")
+
+    return tags
 
 
 # ── Message chunking ────────────────────────────────────────────────

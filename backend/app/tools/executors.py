@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import uuid
@@ -16,6 +17,26 @@ logger = logging.getLogger("tools")
 def _json(obj: Any) -> str:
     """JSON serialize with ensure_ascii=False to preserve Turkish/Unicode chars."""
     return json.dumps(obj, ensure_ascii=False)
+
+
+async def _update_conversation_result(conversation_id: str | None, result: str) -> None:
+    """Set the result column on a conversation record."""
+    if not conversation_id:
+        return
+    try:
+        from sqlalchemy import update
+        from app.db.session import async_session_factory
+        from app.models.conversation import Conversation
+
+        async with async_session_factory() as db:
+            await db.execute(
+                update(Conversation)
+                .where(Conversation.id == uuid.UUID(conversation_id))
+                .values(result=result)
+            )
+            await db.commit()
+    except Exception:
+        logger.exception("Failed to update conversation result")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -163,13 +184,14 @@ class ManageAppointmentTool(BaseTool):
                 if action == "check_availability":
                     return await self._check_availability(args, db, agent_id)
                 elif action == "create":
-                    return await self._create(args, db, agent_id, customer_ig_id)
+                    result = await self._create(args, db, agent_id, customer_ig_id, context)
                 elif action == "cancel":
-                    return await self._cancel(args, db, customer_ig_id)
+                    result = await self._cancel(args, db, agent_id, customer_ig_id, context)
                 elif action == "list":
-                    return await self._list(db, customer_ig_id)
+                    return await self._list(db, agent_id, customer_ig_id)
                 else:
                     return _json({"error": f"Unknown action: {action}"})
+                return result
             except Exception as exc:
                 logger.exception("Appointment tool failed")
                 return _json({"error": str(exc)})
@@ -257,7 +279,7 @@ class ManageAppointmentTool(BaseTool):
         })
 
     async def _create(
-        self, args: dict, db: Any, agent_id: str, customer_ig_id: str
+        self, args: dict, db: Any, agent_id: str, customer_ig_id: str, context: dict
     ) -> str:
         from sqlalchemy import select, and_
         from app.models.appointment import Appointment
@@ -341,8 +363,20 @@ class ManageAppointmentTool(BaseTool):
                     ) if alternatives else f"No available slots on {date_str}. Please try another date.",
                 })
 
+        # Resolve owner user_id from agent
+        from app.models.agent import Agent
+        from app.models.instagram_account import InstagramAccount
+        agent_result = await db.execute(
+            select(InstagramAccount.user_id)
+            .join(Agent, Agent.instagram_account_id == InstagramAccount.id)
+            .where(Agent.id == uuid.UUID(agent_id))
+            .limit(1)
+        )
+        owner_user_id = agent_result.scalar_one_or_none()
+
         appointment = Appointment(
             agent_id=uuid.UUID(agent_id),
+            user_id=owner_user_id,
             customer_ig_id=customer_ig_id,
             customer_name=customer_name,
             customer_surname=customer_surname,
@@ -358,7 +392,7 @@ class ManageAppointmentTool(BaseTool):
         await db.commit()
         await db.refresh(appointment)
 
-        return _json({
+        appt_data = {
             "status": "confirmed",
             "appointment_id": str(appointment.id),
             "customer_name": appointment.customer_name,
@@ -367,9 +401,18 @@ class ManageAppointmentTool(BaseTool):
             "time": str(appointment.appointment_time),
             "subject": appointment.subject,
             "service_type": appointment.service_type,
-        })
+        }
 
-    async def _cancel(self, args: dict, db: Any, customer_ig_id: str) -> str:
+        # Fire-and-forget: email notification to owner
+        from app.services.email_service import notify_appointment_created
+        asyncio.create_task(notify_appointment_created(agent_id, appt_data))
+
+        # Update conversation result
+        asyncio.create_task(_update_conversation_result(context.get("conversation_id"), "appointment_created"))
+
+        return _json(appt_data)
+
+    async def _cancel(self, args: dict, db: Any, agent_id: str, customer_ig_id: str, context: dict) -> str:
         from sqlalchemy import select
         from app.models.appointment import Appointment
 
@@ -377,9 +420,15 @@ class ManageAppointmentTool(BaseTool):
         if not appt_id:
             return _json({"error": "appointment_id is required for cancellation"})
 
+        try:
+            appt_uuid = uuid.UUID(appt_id)
+        except ValueError:
+            return _json({"error": "Invalid appointment_id format. Use the 'list' action first to get the customer's appointment IDs, then use the exact ID to cancel."})
+
         result = await db.execute(
             select(Appointment).where(
-                Appointment.id == uuid.UUID(appt_id),
+                Appointment.id == appt_uuid,
+                Appointment.agent_id == uuid.UUID(agent_id),
                 Appointment.customer_ig_id == customer_ig_id,
             )
         )
@@ -388,23 +437,40 @@ class ManageAppointmentTool(BaseTool):
         if not appointment:
             return _json({"error": "Appointment not found"})
 
+        cancel_data = {
+            "customer_name": appointment.customer_name,
+            "customer_surname": appointment.customer_surname,
+            "date": str(appointment.appointment_date),
+            "time": str(appointment.appointment_time),
+            "reason": args.get("notes", "Cancelled via chatbot"),
+        }
+
         appointment.status = "cancelled"
         appointment.cancelled_at = datetime.now(timezone.utc)
         appointment.cancellation_reason = args.get("notes", "Cancelled via chatbot")
         await db.commit()
+
+        # Fire-and-forget: email notification to owner
+        if appointment.agent_id:
+            from app.services.email_service import notify_appointment_cancelled
+            asyncio.create_task(notify_appointment_cancelled(str(appointment.agent_id), cancel_data))
+
+        # Update conversation result
+        asyncio.create_task(_update_conversation_result(context.get("conversation_id"), "appointment_cancelled"))
 
         return _json({
             "status": "cancelled",
             "appointment_id": str(appointment.id),
         })
 
-    async def _list(self, db: Any, customer_ig_id: str) -> str:
+    async def _list(self, db: Any, agent_id: str, customer_ig_id: str) -> str:
         from sqlalchemy import select
         from app.models.appointment import Appointment
 
         result = await db.execute(
             select(Appointment)
             .where(
+                Appointment.agent_id == uuid.UUID(agent_id),
                 Appointment.customer_ig_id == customer_ig_id,
                 Appointment.status == "confirmed",
                 Appointment.appointment_date >= date.today(),
@@ -534,6 +600,16 @@ class CollectComplimentTool(BaseTool):
             )
             db.add(compliment)
             await db.commit()
+
+        # Fire-and-forget: email notification to owner
+        from app.services.email_service import notify_compliment_received
+        asyncio.create_task(notify_compliment_received(
+            context["agent_id"],
+            {"customer_ig_id": context["customer_ig_id"], "content": content},
+        ))
+
+        # Update conversation result
+        asyncio.create_task(_update_conversation_result(context.get("conversation_id"), "compliment"))
 
         return _json({"status": "recorded", "content": content})
 

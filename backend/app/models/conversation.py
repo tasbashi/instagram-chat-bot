@@ -35,6 +35,9 @@ class Conversation(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     message_count: Mapped[int] = mapped_column(Integer, default=0)
+    result: Mapped[str | None] = mapped_column(
+        String(100)
+    )  # appointment_created | appointment_cancelled | compliment | email_sent | knowledge_used
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     metadata_: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
 

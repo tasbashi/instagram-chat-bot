@@ -103,6 +103,8 @@ export const agents = {
         request<KnowledgeDocument[]>(`/api/agents/${id}/documents`),
     deleteDocument: (agentId: string, docId: string) =>
         request<void>(`/api/agents/${agentId}/documents/${docId}`, { method: 'DELETE' }),
+    delete: (id: string) =>
+        request<void>(`/api/agents/${id}`, { method: 'DELETE' }),
     listLlmProviders: () =>
         request<LlmProvider[]>('/api/agents/llm-providers'),
 };
@@ -237,7 +239,9 @@ export interface Conversation {
     started_at: string;
     last_message_at: string;
     message_count: number;
+    result: string | null;
     resolved_at: string | null;
+    tags: string[];
 }
 
 export interface Message {

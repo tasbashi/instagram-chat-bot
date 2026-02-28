@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid as uuid_mod
 from datetime import date, datetime, timezone
 from typing import Annotated
@@ -28,14 +29,7 @@ async def list_appointments(
     date_from: Annotated[date | None, Query()] = None,
     date_to: Annotated[date | None, Query()] = None,
 ) -> list[AppointmentOut]:
-    # Build query scoped to user's agents
-    user_agent_ids = (
-        select(Agent.id)
-        .join(InstagramAccount)
-        .where(InstagramAccount.user_id == current_user.id)
-    )
-
-    query = select(Appointment).where(Appointment.agent_id.in_(user_agent_ids))
+    query = select(Appointment).where(Appointment.user_id == current_user.id)
 
     if agent_id:
         query = query.where(Appointment.agent_id == agent_id)
@@ -65,6 +59,7 @@ async def create_appointment(
 
     appointment = Appointment(
         agent_id=body.agent_id,
+        user_id=current_user.id,
         customer_ig_id=body.customer_ig_id,
         customer_name=body.customer_name,
         customer_surname=body.customer_surname,
@@ -79,6 +74,22 @@ async def create_appointment(
     db.add(appointment)
     await db.flush()
     await db.refresh(appointment)
+
+    # Fire-and-forget: email notification to owner
+    if body.agent_id:
+        from app.services.email_service import notify_appointment_created
+        asyncio.create_task(notify_appointment_created(
+            str(body.agent_id),
+            {
+                "customer_name": body.customer_name or "",
+                "customer_surname": body.customer_surname or "",
+                "date": str(body.appointment_date),
+                "time": str(body.appointment_time),
+                "subject": body.subject or "",
+                "service_type": body.service_type,
+            },
+        ))
+
     return AppointmentOut.model_validate(appointment)
 
 
@@ -91,11 +102,32 @@ async def update_appointment(
 ) -> AppointmentOut:
     appointment = await _get_user_appointment(appointment_id, db, current_user)
 
+    # Detect date/time change for reschedule notification
+    old_date = str(appointment.appointment_date)
+    old_time = str(appointment.appointment_time)
+
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(appointment, field, value)
 
     await db.flush()
     await db.refresh(appointment)
+
+    # Fire reschedule email if date or time changed
+    new_date = str(appointment.appointment_date)
+    new_time = str(appointment.appointment_time)
+    if appointment.agent_id and (old_date != new_date or old_time != new_time):
+        from app.services.email_service import notify_appointment_rescheduled
+        asyncio.create_task(notify_appointment_rescheduled(
+            str(appointment.agent_id),
+            {
+                "customer_name": appointment.customer_name or "",
+                "customer_surname": appointment.customer_surname or "",
+                "date": new_date,
+                "time": new_time,
+                "subject": appointment.subject or "",
+            },
+        ))
+
     return AppointmentOut.model_validate(appointment)
 
 
@@ -112,6 +144,21 @@ async def cancel_appointment(
     appointment.cancellation_reason = body.cancellation_reason
     await db.flush()
     await db.refresh(appointment)
+
+    # Fire-and-forget: cancellation email to owner
+    if appointment.agent_id:
+        from app.services.email_service import notify_appointment_cancelled
+        asyncio.create_task(notify_appointment_cancelled(
+            str(appointment.agent_id),
+            {
+                "customer_name": appointment.customer_name or "",
+                "customer_surname": appointment.customer_surname or "",
+                "date": str(appointment.appointment_date),
+                "time": str(appointment.appointment_time),
+                "reason": body.cancellation_reason or "—",
+            },
+        ))
+
     return AppointmentOut.model_validate(appointment)
 
 
@@ -146,15 +193,10 @@ async def _verify_agent_ownership(
 async def _get_user_appointment(
     appointment_id: uuid_mod.UUID, db: DBSession, current_user: CurrentUser
 ) -> Appointment:
-    user_agent_ids = (
-        select(Agent.id)
-        .join(InstagramAccount)
-        .where(InstagramAccount.user_id == current_user.id)
-    )
     result = await db.execute(
         select(Appointment).where(
             Appointment.id == appointment_id,
-            Appointment.agent_id.in_(user_agent_ids),
+            Appointment.user_id == current_user.id,
         )
     )
     appointment = result.scalar_one_or_none()

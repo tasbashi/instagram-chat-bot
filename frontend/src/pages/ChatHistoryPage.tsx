@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MessageSquare, ArrowLeft, Wrench } from 'lucide-react';
+import { MessageSquare, ArrowLeft, Wrench, CalendarPlus, CalendarX, Star, Mail, BookOpen, CalendarSearch, Tag } from 'lucide-react';
 import { conversations, type Conversation, type ConversationDetail } from '../lib/api';
 
 /* ── Shared class strings ──────────────────────────────────────── */
@@ -9,6 +9,27 @@ const btnSecondary = "inline-flex items-center justify-center gap-sm px-5 py-2.5
 const btnGhost = "inline-flex items-center justify-center gap-sm text-text-secondary hover:bg-bg-tertiary hover:text-text-primary transition-all duration-150";
 const btnDanger = "inline-flex items-center justify-center gap-sm px-5 py-2.5 rounded-md text-sm font-medium bg-error/10 text-error border border-error/20 hover:bg-error/20 transition-all duration-150";
 const btnSm = "px-3 py-1.5 text-[0.8rem]";
+
+const RESULT_CONFIG: Record<string, { label: string; icon: typeof Tag; color: string }> = {
+    appointment_created: { label: 'Appointment Booked', icon: CalendarPlus, color: 'bg-success/10 text-success' },
+    appointment_cancelled: { label: 'Appointment Cancelled', icon: CalendarX, color: 'bg-error/10 text-error' },
+    availability_checked: { label: 'Availability Checked', icon: CalendarSearch, color: 'bg-info/10 text-info' },
+    compliment: { label: 'Compliment Received', icon: Star, color: 'bg-warning/10 text-warning' },
+    email_sent: { label: 'Email Sent', icon: Mail, color: 'bg-accent-purple/10 text-accent-purple' },
+    knowledge_used: { label: 'Info Provided', icon: BookOpen, color: 'bg-accent-orange/10 text-accent-orange' },
+};
+
+function ConversationResult({ result }: { result: string | null }) {
+    if (!result) return <span className="text-xs text-text-tertiary">—</span>;
+    const cfg = RESULT_CONFIG[result];
+    if (!cfg) return <span className="text-xs text-text-tertiary">—</span>;
+    const Icon = cfg.icon;
+    return (
+        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.7rem] font-medium ${cfg.color}`}>
+            <Icon size={10} /> {cfg.label}
+        </span>
+    );
+}
 
 export function ChatHistoryPage() {
     const [list, setList] = useState<Conversation[]>([]);
@@ -76,6 +97,7 @@ export function ChatHistoryPage() {
                             <div className="flex items-center gap-md mt-1">
                                 <StatusBadge status={selectedDetail.conversation.status} />
                                 <span className="text-xs text-text-tertiary">{selectedDetail.conversation.message_count} messages</span>
+                                <ConversationResult result={selectedDetail.conversation.result} />
                             </div>
                         </div>
                         <div className="flex gap-sm">
@@ -159,7 +181,7 @@ export function ChatHistoryPage() {
                     <table className="w-full border-collapse">
                         <thead>
                             <tr>
-                                {['Customer', 'Messages', 'Last Message', 'Status', 'Started'].map(h => (
+                                {['Customer', 'Messages', 'Result', 'Last Message', 'Status', 'Started'].map(h => (
                                     <th key={h} className="px-md py-sm text-left text-xs font-semibold text-text-tertiary uppercase tracking-wider border-b border-border-subtle">{h}</th>
                                 ))}
                             </tr>
@@ -178,6 +200,9 @@ export function ChatHistoryPage() {
                                     </td>
                                     <td className="p-md text-sm border-b border-border-subtle align-middle">
                                         <span className="font-semibold text-accent-purple">{conv.message_count}</span>
+                                    </td>
+                                    <td className="p-md text-sm border-b border-border-subtle align-middle">
+                                        <ConversationResult result={conv.result} />
                                     </td>
                                     <td className="p-md text-sm border-b border-border-subtle align-middle text-text-secondary">{formatTime(conv.last_message_at)}</td>
                                     <td className="p-md text-sm border-b border-border-subtle align-middle">

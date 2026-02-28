@@ -51,7 +51,7 @@ async def list_conversations(
 
     result = await db.execute(query)
     conversations = result.scalars().all()
-    return [ConversationOut.model_validate(c) for c in conversations]
+    return [ConversationOut.from_conversation(c) for c in conversations]
 
 
 @router.get("/{conversation_id}")
@@ -68,7 +68,7 @@ async def get_conversation(
     messages = msg_result.scalars().all()
 
     return ConversationDetailOut(
-        conversation=ConversationOut.model_validate(conversation),
+        conversation=ConversationOut.from_conversation(conversation),
         messages=[MessageOut.model_validate(m) for m in messages],
     )
 
@@ -87,7 +87,7 @@ async def update_conversation_status(
         conversation.resolved_at = datetime.now(timezone.utc)
 
     await db.flush()
-    return ConversationOut.model_validate(conversation)
+    return ConversationOut.from_conversation(conversation)
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
