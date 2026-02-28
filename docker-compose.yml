@@ -1,0 +1,67 @@
+services:
+  # ── PostgreSQL ──
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-chatbot_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chatbot_secure_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-instagram_chatbot}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-chatbot_user}" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── Qdrant ──
+  qdrant:
+    image: qdrant/qdrant
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:6333 || exit 1" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── Backend (FastAPI) ──
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      # Override DB/Qdrant hosts to point to Docker service names
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-chatbot_user}:${POSTGRES_PASSWORD:-chatbot_secure_2026}@postgres:5432/${POSTGRES_DB:-instagram_chatbot}
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      FRONTEND_URL: http://${SERVER_IP:-63.182.241.50}
+    volumes:
+      - uploads:/app/uploads
+      - ./gcp-key.json:/app/gcp-key.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+
+  # ── Nginx (reverse proxy + frontend) ──
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  qdrant_data:
+  uploads:
