@@ -57,10 +57,11 @@ class Settings(BaseSettings):
     azure_openai_model: str = "gpt-4o"
     azure_openai_api_version: str = "2024-08-01-preview"
 
-    # ── Vertex AI (Embeddings) ──
-    google_cloud_project: str = ""
-    google_cloud_location: str = "us-central1"
-    embedding_model: str = "text-embedding-004"
+    # ── Azure Embedding ──
+    azure_embedding_endpoint: str = ""
+    azure_embedding_api_key: str = ""
+    azure_embedding_deployment: str = "text-embedding-3-small"
+    azure_embedding_api_version: str = "2024-02-01"
     embedding_dimension: int = 768
 
     # ── Email (SMTP) ──

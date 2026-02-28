@@ -43,7 +43,6 @@ services:
       FRONTEND_URL: http://${SERVER_IP:-63.182.241.50}
     volumes:
       - uploads:/app/uploads
-      - ./gcp-key.json:/app/gcp-key.json:ro
     depends_on:
       postgres:
         condition: service_healthy

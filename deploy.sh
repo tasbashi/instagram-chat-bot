@@ -37,16 +37,7 @@ if [ ! -f backend/.env ]; then
     exit 1
 fi
 
-# ── 3. Check GCP key (optional) ──
-if [ ! -f gcp-key.json ]; then
-    echo ""
-    echo "⚠️  No gcp-key.json found in project root."
-    echo "   If you use Vertex AI for embeddings, place your GCP service account key here."
-    echo "   Creating an empty placeholder for now..."
-    echo "{}" > gcp-key.json
-fi
-
-# ── 4. Build & Start ──
+# ── 3. Build & Start ──
 echo ""
 echo "🚀 Building and starting services..."
 sudo docker compose up -d --build
