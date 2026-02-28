@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { VerifyEmailPage } from './pages/VerifyEmailPage';
 import { AgentsPage } from './pages/AgentsPage';
 import { AppointmentsPage } from './pages/AppointmentsPage';
 import { ChatHistoryPage } from './pages/ChatHistoryPage';
@@ -38,6 +39,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/agents" replace /> : <LoginPage />} />
       <Route path="/register" element={user ? <Navigate to="/agents" replace /> : <RegisterPage />} />
+      <Route path="/verify-email" element={user ? <Navigate to="/agents" replace /> : <VerifyEmailPage />} />
       <Route path="/agents" element={<ProtectedRoute><AgentsPage /></ProtectedRoute>} />
       <Route path="/appointments" element={<ProtectedRoute><AppointmentsPage /></ProtectedRoute>} />
       <Route path="/chat-history" element={<ProtectedRoute><ChatHistoryPage /></ProtectedRoute>} />

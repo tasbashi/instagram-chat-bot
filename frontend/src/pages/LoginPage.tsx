@@ -20,7 +20,12 @@ export function LoginPage() {
             await login(email, password);
             navigate('/agents');
         } catch (err: any) {
-            setError(err.message || 'Login failed');
+            const msg = err.message || 'Login failed';
+            if (msg === 'Email not verified') {
+                navigate('/verify-email', { state: { email } });
+                return;
+            }
+            setError(msg);
         } finally {
             setLoading(false);
         }

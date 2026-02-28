@@ -70,6 +70,7 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     smtp_from: str = ""
+    verification_code_expiry_minutes: int = 5
 
     # ── RAG ──
     chunk_size_tokens: int = 400

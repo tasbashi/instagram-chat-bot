@@ -5,7 +5,8 @@ interface AuthContextType {
     user: User | null;
     loading: boolean;
     login: (email: string, password: string) => Promise<void>;
-    register: (email: string, password: string, fullName?: string) => Promise<void>;
+    register: (email: string, password: string, fullName?: string) => Promise<{ email: string }>;
+    verifyEmail: (email: string, code: string) => Promise<void>;
     logout: () => void;
 }
 
@@ -33,6 +34,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const register = async (email: string, password: string, fullName?: string) => {
         const res = await auth.register({ email, password, full_name: fullName });
+        return { email: res.email };
+    };
+
+    const verifyEmail = async (email: string, code: string) => {
+        const res = await auth.verifyEmail({ email, code });
         localStorage.setItem('token', res.access_token);
         const me = await auth.me();
         setUser(me);
@@ -44,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+        <AuthContext.Provider value={{ user, loading, login, register, verifyEmail, logout }}>
             {children}
         </AuthContext.Provider>
     );

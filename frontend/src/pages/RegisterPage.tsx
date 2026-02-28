@@ -18,8 +18,8 @@ export function RegisterPage() {
         setLoading(true);
 
         try {
-            await register(email, password, fullName || undefined);
-            navigate('/agents');
+            const { email: registeredEmail } = await register(email, password, fullName || undefined);
+            navigate('/verify-email', { state: { email: registeredEmail } });
         } catch (err: any) {
             setError(err.message || 'Registration failed');
         } finally {

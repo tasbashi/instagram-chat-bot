@@ -59,9 +59,13 @@ async function uploadFile<T>(path: string, file: File): Promise<T> {
 
 export const auth = {
     register: (data: { email: string; password: string; full_name?: string }) =>
-        request<{ access_token: string }>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+        request<{ message: string; email: string }>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
     login: (data: { email: string; password: string }) =>
         request<{ access_token: string }>('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+    verifyEmail: (data: { email: string; code: string }) =>
+        request<{ access_token: string }>('/api/auth/verify-email', { method: 'POST', body: JSON.stringify(data) }),
+    resendCode: (data: { email: string }) =>
+        request<{ message: string; email: string }>('/api/auth/resend-code', { method: 'POST', body: JSON.stringify(data) }),
     me: () => request<User>('/api/auth/me'),
 };
 
